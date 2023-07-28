@@ -33,10 +33,11 @@ met2model.FATES <- function(in.path, in.prefix, outfolder, start_date, end_date,
   
   
   insert <- function(ncout, name, unit, data) {
-    var   <- ncdf4::ncvar_def(name = name, units = unit, dim = dim, missval = -6999, verbose = verbose)
-    ncout <- ncdf4::ncvar_add(nc = ncout, v = var, verbose = verbose)
-    ncvar_put(nc = ncout, varid = name, vals = data)
-    return(invisible(ncout))
+    var   <- ncdf4::ncvar_def(nc = ncout, name = name, units = unit, dim = dim, missval = -6999, verbose = verbose)
+    #var   <- ncdf4::ncvar_def(name = name, units = unit, dim = dim, missval = -6999, verbose = verbose)
+    #ncout <- ncdf4::ncvar_add(nc = ncout, v = var, verbose = verbose)
+    ncvar_put(nc = var, varid = name, vals = data)
+    return(invisible(var))#ncout
   }
   sm <- c(0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365) * 86400  ## day of year thresholds
   
