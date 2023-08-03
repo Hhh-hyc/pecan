@@ -74,111 +74,98 @@ met2model.FATES <- function(in.path, in.prefix, outfolder, start_date, end_date,
       ## CREATE MONTHLY FILES
       for (mo in 1:12) {
         tsel <- which(time > sm[mo] & time <= sm[mo + 1]) #time? PEcAn-output consistent
-
-        # precipitation
-        outfile <- file.path(outfolder, paste0(formatC(year, width = 4, flag = "0"), "-", 
-                                               formatC(mo, width = 2, flag = "0"), ".nc")) # 2. name beofre year? or CTSM_container_edit_forcing name with only year&month in user_datm_streams
-        if (file.exists(outfile) & overwrite == FALSE) {
-          next
-        }
-        
+        #define dim
         lat.dim  <- ncdim_def(name = "lat", units = "", vals = 1:1, create_dimvar = FALSE)
         lon.dim  <- ncdim_def(name = "lon", units = "", vals = 1:1, create_dimvar = FALSE)
-        time.dim <- ncdim_def(name = "time", units = "seconds", vals = time, 
+        time.dim <- ncdim_def(name = "time", units = "seconds", vals = time,
                               create_dimvar = TRUE, unlim = TRUE)#left to CTSM automatically transfer
         scalar.dim <- ncdim_def(name='"scalar", units = "", vals = 1:1, creat_dimvar = FALSE)# dimensions in forcing data
-        dim      <- list(lat.dim, lon.dim, time.dim, scalar.dim)  ## docs say this should be time,lat,lon but get error writing unlimited first
+        dim      <- list(lat.dim, lon.dim, time.dim, scalar.dim)  ## Original question: docs say this should be time,lat,lon but get error writing unlimited first
         ## http://www.cesm.ucar.edu/models/cesm1.2/clm/models/lnd/clm/doc/UsersGuide/x12979.html
         
         # LATITUDE
-        var <- ncdf4::ncvar_def(name = "LATIXY", units = "degree_north", 
-                         dim = list(lat.dim, lon.dim), missval = as.numeric(-9999)) #dim consistent with .nc, missing value==NaNf?
+        var <- ncdf4::ncvar_def(name = "LATIXY", units = "degree_north",
+                         dim = list(lat.dim, lon.dim), missval = as.numeric(-9999)) #2. dim consistent with .nc, missing value==NaNf?
         ncout <- ncdf4::nc_create(outfile, vars = var, verbose = verbose)
         ncvar_put(nc = ncout, varid = "LATIXY", vals = LATIXY) #same with FATES
-        
+
         # LONGITUDE
-        var <- ncdf4::ncvar_def(name = "LONGXY", units = "degree_east", 
+        var <- ncdf4::ncvar_def(name = "LONGXY", units = "degree_east",
                          dim = list(lat.dim, lon.dim), missval = as.numeric(-9999))
         ncout <- ncdf4::ncvar_add(nc = ncout, v = var, verbose = verbose)
         ncvar_put(nc = ncout, varid = "LONGXY", vals = LONGXY)
         
-        ## surface_downwelling_longwave_flux_in_air
-        ncout <- insert(ncout, "FLDS", "W m-2", FLDS)
-        
-        ## surface_downwelling_shortwave_flux_in_air
-        ncout <- insert(ncout, "FSDS", "W m-2", FSDS)
-        
-        ## precipitation_flux
-        ncout <- insert(ncout, "PRECTmms", "mm/s", PRECTmms)
-        
-        ## air_pressure
-        ncout <- insert(ncout, "PSRF", "Pa", PSRF)
-        
-        ## specific_humidity
-        ncout <- insert(ncout, "QBOT", "kg/kg", QBOT)
-        
-        ## air_temperature
-        ncout <- insert(ncout, "TBOT", "K", TBOT)
-        
-        ## eastward_wind & northward_wind
-        ncout <- insert(ncout, "WIND", "m/s", WIND)
-        
-        #ncdf4::nc_close(ncout)
-
-        # EDGEW # *4  edge for resolution , edge-central 0.005, # PEcAn provide range of grid? 
-        var <- ncdf4::ncvar_def(name = "EDGEW", units = "degrees_east",
-                         dim = list(scalar.dim, lat.dim, lon.dim), missval = as.numeric(-9999))
-        ncout <- ncdf4::ncvar_add(nc = ncout, v = var, verbose = verbose)
-        ncvar_put(nc = ncout, varid = "EDGEW", vals = LONGXY-0.005)
-        
+        #time
+        ncout <- insert(ncout, "time", "days", time) #3. neceaasry?
+)
         # EDGEE
         var <- ncdf4::ncvar_def(name = "EDGEE", units = "degrees_east",
                          dim = list(scalar.dim, lat.dim, lon.dim), missval = as.numeric(-9999))
         ncout <- ncdf4::ncvar_add(nc = ncout, v = var, verbose = verbose)
         ncvar_put(nc = ncout, varid = "EDGEE", vals = LONGXY+0.005)
 
-        #EDGES
+        # EDGES
         var <- ncdf4::ncvar_def(name = "EDGES", units = "degrees_north",
                          dim = list(scalar.dim, lat.dim, lon.dim), missval = as.numeric(-9999))
         ncout <- ncdf4::ncvar_add(nc = ncout, v = var, verbose = verbose)
         ncvar_put(nc = ncout, varid = "EDGES", vals = LONGXY-0.005)
 
-        #EDGEN
+        # EDGEN
         var <- ncdf4::ncvar_def(name = "EDGEN", units = "degrees_north",
                          dim = list(scalar.dim, lat.dim, lon.dim), missval = as.numeric(-9999))
         ncout <- ncdf4::ncvar_add(nc = ncout, v = var, verbose = verbose)
         ncvar_put(nc = ncout, varid = "EDGEN", vals = LONGXY+0.005)
         
-        #   ncvar_rename(ncfile,varid="LONGXY")
-        #   ncvar_rename(ncfile,varid="LATIXY")
-        #   #     
-        #   #     double EDGEW(scalar) ;
-        #   #     EDGEW:long_name = "western edge in atmospheric data" ;
-        #   #     EDGEW:units = "degrees E" ;
-        #   EDGEW = ncvar_rename(ncfile,"EDGEW","EDGEW")
-        #   
-        #   #     double EDGEE(scalar) ;
-        #   #     EDGEE:long_name = "eastern edge in atmospheric data" ;
-        #   #     EDGEE:units = "degrees E" ;
-        #   EDGEE = ncvar_rename(ncfile,"EDGEE","EDGEE")
-        #   
-        #   #     double EDGES(scalar) ;
-        #   #     EDGES:long_name = "southern edge in atmospheric data" ;
-        #   #     EDGES:units = "degrees N" ;
-        #   EDGES = ncvar_rename(ncfile,"EDGES","EDGES") 
-        #   #     
-        #   #     double EDGEN(scalar) ;
-        #   #     EDGEN:long_name = "northern edge in atmospheric data" ;
-        #   #     EDGEN:units = "degrees N" ;
-        #   EDGEN = ncvar_rename(ncfile,"EDGEN","EDGEN")
-        ncdf4::nc_close(ncout)
-      }
-      # FATES_3 files
-      ncdf4::nc_close(nc)
+        # EDGEW # *4  edge for resolution , edge-central 0.005, # PEcAn provide range of grid?
+        var <- ncdf4::ncvar_def(name = "EDGEW", units = "degrees_east",
+                         dim = list(scalar.dim, lat.dim, lon.dim), missval = as.numeric(-9999))
+        ncout <- ncdf4::ncvar_add(nc = ncout, v = var, verbose = verbose)
+        ncvar_put(nc = ncout, varid = "EDGEW", vals = LONGXY-0.005)
+        ## saperately create files
+        # precipitation
+        outfile_prec <- file.path(outfolder, paste0("Prec", formatC(year, width = 4, flag = "0"), "-",
+                                               formatC(mo, width = 2, flag = "0"), ".nc")) # 2. name beofre year? or CTSM_container_edit_forcing name with only year&month in user_datm_streams
+        if (file.exists(outfile_prec) & overwrite == FALSE) {
+          next
+        }
+        ncout_prec <- ncout 
+        ## precipitation_flux
+        ncout_prec <- insert(ncout_prec, "PRECTmms", "mm/s", PRECTmms)
+        ncdf4::nc_close(ncout_prec)
        
+        # solar
+        outfile_slr <- file.path(outfolder, paste0("Slr", formatC(year, width = 4, flag = "0"), "-",
+                                               formatC(mo, width = 2, flag = "0"), ".nc")) # 2. name beofre year? or CTSM_container_edit_forcing name with only year&month in user_datm_streams
+        if (file.exists(outfile_Slr) & overwrite == FALSE) {
+          next
+        }
+        ncout_slr <- ncout
+        ## surface_downwelling_shortwave_flux_in_air
+        ncout_slr <- insert(ncout_slr, "FSDS", "W m-2", FSDS)
+        ncdf4::nc_close(ncout_slr)
 
-    }  ## end file exists
-  }  ### end loop over met files
+        # temper
+        outfile_tem <- file.path(outfolder, paste0("Tem", formatC(year, width = 4, flag = "0"), "-",
+                                               formatC(mo, width = 2, flag = "0"), ".nc")) # 2. name beofre year? or CTSM_container_edit_forcing name with only year&month in user_datm_streams
+        if (file.exists(outfile_Tem) & overwrite == FALSE) {
+          next
+        }
+        ncout_tem <- ncout
+        ## surface_downwelling_longwave_flux_in_air
+        ncout_tem <- insert(ncout_tem, "FLDS", "W m-2", FLDS)
+        ## air_pressure
+        ncout_tem <- insert(ncout_tem, "PSRF", "Pa", PSRF)
+        ## specific_humidity
+        ncout_tem <- insert(ncout_tem, "QBOT", "kg/kg", QBOT)
+        ## air_temperature
+        ncout_tem <- insert(ncout_tem, "TBOT", "K", TBOT)
+        ## eastward_wind & northward_wind
+        ncout_tem <- insert(ncout_tem, "WIND", "m/s", WIND)
+        ncdf4::nc_close(ncout_tem)
+        }
+        ncdf4::nc_close(nc)
+    }  ## end input file exists
+  }  ### end year loop over met files
   
   PEcAn.logger::logger.info("Done with met2model.FATES")
   
