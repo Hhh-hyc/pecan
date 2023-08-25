@@ -58,8 +58,7 @@ model2netcdf.ED2 <- function(outdir,
     end_year   <- lubridate::year(end_date)
     
     flist <- list()
-    flist[["-T-"]] <- dir(outdir, "-T-") # tower files
-    flist[["-E-"]] <- dir(outdir, "-E-") # monthly files
+    flist <- dir(outdir) # daily files
 
     # check if there are files
     file.check <- sapply(flist, function (f) length(f) != 0)
@@ -68,26 +67,74 @@ model2netcdf.ED2 <- function(outdir,
         PEcAn.logger::logger.warn("WARNING: No output files found for :", outdir)
         return(NULL)
     } else {
-        # which output files are there
-        fates_res_flag <- names(flist)[file.check]
         # extract year info from the file names
         ylist <- lapply(
-          fates_res_flag,
-          function(x) stringr::str_extract(flist[[x]], "\\d{4}")
+          function(x) stringr::str_extract(flist[x], "\\d{4}")
         )
-        names(ylist) <- fates_res_flag
     }
-    
     # prepare list to collect outputs
-    out_list <- vector("list", length(fates_res_flag))
-    names(out_list) <- fates_res_flag
+    out_list <- vector("list", length(ylist))
 
     ## how to deal with failed runs? see 90-120 in ed model
-} 
 
+    # ----- start loop over years
+    for (y in start_year:end_year) { PEcAn.logger::logger.info(paste0("----- Processing year: ", y))
+    # ----- read values from output files
+    for (i in seq_along(out_list)) {
+      out_list[i] <- list(yr = y, ylist[i], flist, outdir, start_date, end_date, pfts, settings)
+    }
+    # generate start/end dates for processing
+    if (y == start_year) {
+      start_date_real <- lubridate::ymd(start_date)
+    } else {
+      #When would this be run?
+      start_date_real <- lubridate::make_date(y, 1, 1)
+    }
+      
+    if (y == end_year) {
+      end_date_real <- lubridate::ymd(end_date)
+    } else {
+      #When would this be run?
+      end_date_real <- lubridate::make_date(y, 12, 31)
+    }
+  }
+    
+  # create lat/long nc variables
+  lat <- ncdf4::ncdim_def("lat", "degrees_north",
+                          vals = as.numeric(sitelat),
+                          longname = "station_latitude")
+  lon <- ncdf4::ncdim_def("lon", "degrees_east",
+                          vals = as.numeric(sitelon),
+                          longname = "station_longitude")
+    
+  # ----- put values to nc_var list
+  nc_var <- list()
+  for (i in seq_along(out_list)) {
+    put_out <- list(yr = y, nc_var = nc_var, var_list = out_list[i],lat = lat, lon = lon, start_date = start_date_real, end_date = end_date_real)
+    nc_var  <- put_out$nc_var
+    out_list[i] <- put_out$out
+  }
 
+  # ----- write ncdf files
+  PEcAn.logger::logger.info("*** Writing netCDF file ***")
 
-
+  out <- unlist(out_list, recursive = FALSE)
+  #create nc file with slots for all variables
+  nc <- ncdf4::nc_create(file.path(outdir, paste(y, "nc", sep = ".")), nc_var)
+  # define time_bounds for outputs, if exists
+  if (file.check==TRUE) {
+    ncdf4::ncatt_put(nc, "time", "bounds", "time_bounds", prec = NA) 
+  }
+  varfile <- file(file.path(outdir, paste(y, "nc", "var", sep = ".")), "w")
+  # fill nc file with data
+  for (i in seq_along(nc_var)) {
+    var_put(nc, varid = nc_var[[i]], vals = out[[i]])
+    cat(paste(nc_var[[i]]$name, nc_var[[i]]$longname), file = varfile, sep = "\n")
+  }
+  ncdf4::nc_close(nc)
+  close(varfile)
+  } # end year-loop
+}# model2netcdf.FATES.R
 
 }
 
