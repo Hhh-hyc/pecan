@@ -10,17 +10,87 @@
 ##' @name model2netcdf.FATES
 ##' @title Code to convert FATES netcdf output into into CF standard
 ##'
-##' @param outdir Location of FATES model output
+##' @param outdir Location of FATES model output (e.g. a path to a single ensemble output)
+##' @param sitelat Latitude of the site
+##' @param sitelon Longitude of the site
+##' @param start_date Start time of the simulation
+##' @param end_date End time of the simulation
+##' @param pfts a named vector of PFT numbers where the names are PFT names
+##' @param settings pecan settings object
+##' @param process_partial should failed runs be processed? Defaults to `FALSE`.
+##'   `TRUE` will generate .nc files for runs that have generated some, but not
+##'   all, of the expected outputs
+##'
 ##' 
 ##' @examples  
 ##' \dontrun{
 ##' example.output <- system.file("case.clm2.h0.2004-01-01-00000.nc",package="PEcAn.FATES")
 ##' model2netcdf.FATES(outdir="~/")
 ##' }
+##'
+##' @author Michael Dietze, Shawn Serbin, Rob Kooper, Toni Viskari, Istem Fer
+## modified M. Dietze 07/08/12 modified S. Serbin 05/06/13
+## refactored by Istem Fer on 03/2018
+## further modified by S. Serbin 09/2018
 ##' 
 ##' @export
-##'
-##' @author Michael Dietze, Shawn Serbin
+
+
+model2netcdf.ED2 <- function(outdir,
+                             sitelat,
+                             sitelon,
+                             start_date,
+                             end_date,
+                             pfts,
+                             settings = NULL,
+                             process_partial = FALSE){
+    # Check settings and missing parameters
+    if(!is.null(settings)) {
+        if(!inherits(settings, "Settings")) {PEcAn.logger::logger.error("`settings` should be a PEcAn 'Settings' object")}
+        if(missing(sitelat)) sitelat <- settings$run$site$lat
+        if(missing(sitelon)) sitelon <- settings$run$site$lon
+        if(missing(start_date)) start_date <- settings$run$start.date
+        if(missing(end_date)) end_date <- settings$run$end.date
+        if(missing(pfts)) pfts <- extract_pfts(settings$pfts)
+  }
+
+    start_year <- lubridate::year(start_date)
+    end_year   <- lubridate::year(end_date)
+    
+    flist <- list()
+    flist[["-T-"]] <- dir(outdir, "-T-") # tower files
+    flist[["-E-"]] <- dir(outdir, "-E-") # monthly files
+
+    # check if there are files
+    file.check <- sapply(flist, function (f) length(f) != 0)
+    if (!any(file.check)) {
+        # no output files
+        PEcAn.logger::logger.warn("WARNING: No output files found for :", outdir)
+        return(NULL)
+    } else {
+        # which output files are there
+        fates_res_flag <- names(flist)[file.check]
+        # extract year info from the file names
+        ylist <- lapply(
+          fates_res_flag,
+          function(x) stringr::str_extract(flist[[x]], "\\d{4}")
+        )
+        names(ylist) <- fates_res_flag
+    }
+    
+    # prepare list to collect outputs
+    out_list <- vector("list", length(fates_res_flag))
+    names(out_list) <- fates_res_flag
+
+    ## how to deal with failed runs? see 90-120 in ed model
+} 
+
+
+
+
+
+}
+
 model2netcdf.FATES <- function(outdir) {
 
     # E.g. var_update("AR","AutoResp","kgC m-2 s-1", "Autotrophic Respiration")
@@ -130,12 +200,7 @@ model2netcdf.FATES <- function(outdir) {
         out <- var_update(out,"GPP","GPP","kgC m-2 s-1","Gross Primary Productivity")
         out <- var_update(out,"NPP","NPP","kgC m-2 s-1","Net Primary Productivity")
         out <- var_update(out,"NEP","NEE","kgC m-2 s-1", "Net Ecosystem Exchange")
-        out <- var_update(out,"FLDS","LWdown","W m-2","Surface incident longwave radiation") 
-        out <- var_update(out,"FSDS","SWdown","W m-2","Surface incident shortwave radiation")
-        out <- var_update(out,"TBOT","Tair","K","Near surface air temperature") # not certain these are equivelent yet
-        out <- var_update(out,"QBOT","Qair","kg kg-1","Near surface specific humidity") # not certain these are equivelent yet
-        out <- var_update(out,"RH","RH","%","Relative Humidity") 
-        out <- var_update(out,"WIND","Wind","m s-1","Near surface module of the wind") # not certain these are equivelent yet
+        
         out <- var_update(out,"EFLX_LH_TOT","Qle","W m-2","Latent heat")
         out <- var_update(out,"QVEGT","Transp","mm s-1","Total Transpiration") ## equiv to std of kg m-2 s but don't trust udunits to get right
         out <- var_update(out,"ED_balive","TotLivBiom","kgC m-2","Total living biomass")
