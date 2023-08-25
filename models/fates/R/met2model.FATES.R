@@ -34,7 +34,7 @@ met2model.FATES <- function(in.path, in.prefix, outfolder, start_date, end_date,
   
   insert <- function(ncout, name, unit, data) {
     var   <- ncdf4::ncvar_def(name = name, units = unit, dim = dim, missval = -6999, verbose = verbose)
-    ncout <- ncdf4::ncvar_add(nc = var, v = var, verbose = verbose) ##1. -6999?
+    ncout <- ncdf4::ncvar_add(nc = ncout, v = var, verbose = verbose) ##1. -6999?
     ncvar_put(nc = var, varid = name, vals = data)
     return(invisible(ncout))
   }
@@ -48,7 +48,7 @@ met2model.FATES <- function(in.path, in.prefix, outfolder, start_date, end_date,
   end_date   <- as.POSIXlt(end_date, tz = "UTC")
   start_year <- lubridate::year(start_date)
   end_year   <- lubridate::year(end_date)
-  
+  print(start_date) 
   ## Build met
   for (year in start_year:end_year) {
     
@@ -121,7 +121,9 @@ met2model.FATES <- function(in.path, in.prefix, outfolder, start_date, end_date,
                          dim = list(scalar.dim, lat.dim, lon.dim), missval = as.numeric(-9999))
         ncout <- ncdf4::ncvar_add(nc = ncout, v = var, verbose = verbose)
         ncvar_put(nc = ncout, varid = "EDGEW", vals = LONGXY-0.005)
+        
         ## saperately create files
+
         # precipitation
         outfile_prec <- file.path(outfolder, paste0("Prec", formatC(year, width = 4, flag = "0"), "-",
                                                formatC(mo, width = 2, flag = "0"), ".nc")) # 2. name beofre year? or CTSM_container_edit_forcing name with only year&month in user_datm_streams
