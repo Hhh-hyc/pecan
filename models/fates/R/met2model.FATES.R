@@ -33,8 +33,8 @@ met2model.FATES <- function(in.path, in.prefix, outfolder, start_date, end_date,
   
   
   insert <- function(ncout, name, unit, data) {
-    var   <- ncdf4::ncvar_def(name = name, units = unit, dim = dim, missval = -6999, verbose = verbose)
-    ncout <- ncdf4::ncvar_add(nc = ncout, v = var, verbose = verbose) ##1. -6999?
+    var   <- ncdf4::ncvar_def(name = name, units = unit, dim = dim, missval = as.numeric(1.0e36), verbose = verbose)
+    ncout <- ncdf4::ncvar_add(nc = ncout, v = var, verbose = verbose)
     ncvar_put(nc = var, varid = name, vals = data)
     return(invisible(ncout))
   }
@@ -73,19 +73,26 @@ met2model.FATES <- function(in.path, in.prefix, outfolder, start_date, end_date,
       
       ## CREATE MONTHLY FILES
       for (mo in 1:12) {
-        tsel <- which(time > sm[mo] & time <= sm[mo + 1]) #time? PEcAn-output consistent
+        # slice
+        tsel <- which(time > sm[mo] & time <= sm[mo + 1])
         #define dim
         lat.dim  <- ncdim_def(name = "lat", units = "", vals = 1:1, create_dimvar = FALSE)
         lon.dim  <- ncdim_def(name = "lon", units = "", vals = 1:1, create_dimvar = FALSE)
-        time.dim <- ncdim_def(name = "time", units = "seconds", vals = time,
+        time.dim <- ncdim_def(name = "time", units = "seconds", vals = 248,
                               create_dimvar = TRUE, unlim = TRUE)#left to CTSM automatically transfer
-        scalar.dim <- ncdim_def(name='"scalar", units = "", vals = 1:1, creat_dimvar = FALSE)# dimensions in forcing data
-        dim      <- list(lat.dim, lon.dim, time.dim, scalar.dim)  ## Original question: docs say this should be time,lat,lon but get error writing unlimited first
+        scalar.dim <- ncdim_def(name='"scalar", units = "", vals = 1:1, creat_dimvar = FALSE)
+        dim      <- list(lat.dim, lon.dim, time.dim, scalar.dim)  ## Original question
         ## http://www.cesm.ucar.edu/models/cesm1.2/clm/models/lnd/clm/doc/UsersGuide/x12979.html
-        
+        # basic .nc file 
+        outfile <- file.path(outfolder, paste0(formatC(year, width = 4, flag = "0"), "-", 
+                                               formatC(mo, width = 2, flag = "0"), ".nc"))
+        if (file.exists(outfile) & overwrite == FALSE) {
+          next
+        }
+
         # LATITUDE
         var <- ncdf4::ncvar_def(name = "LATIXY", units = "degree_north",
-                         dim = list(lat.dim, lon.dim), missval = as.numeric(-9999)) #2. dim consistent with .nc, missing value==NaNf?
+                         dim = list(lat.dim, lon.dim), missval = as.numeric(-9999))
         ncout <- ncdf4::nc_create(outfile, vars = var, verbose = verbose)
         ncvar_put(nc = ncout, varid = "LATIXY", vals = LATIXY) #same with FATES
 
@@ -96,7 +103,7 @@ met2model.FATES <- function(in.path, in.prefix, outfolder, start_date, end_date,
         ncvar_put(nc = ncout, varid = "LONGXY", vals = LONGXY)
         
         #time
-        ncout <- insert(ncout, "time", "days", time) #3. neceaasry?
+        ncout <- insert(ncout, "time", "days", time[tsel])
 )
         # EDGEE
         var <- ncdf4::ncvar_def(name = "EDGEE", units = "degrees_east",
@@ -126,43 +133,43 @@ met2model.FATES <- function(in.path, in.prefix, outfolder, start_date, end_date,
 
         # precipitation
         outfile_prec <- file.path(outfolder, paste0("Prec", formatC(year, width = 4, flag = "0"), "-",
-                                               formatC(mo, width = 2, flag = "0"), ".nc")) # 2. name beofre year? or CTSM_container_edit_forcing name with only year&month in user_datm_streams
+                                               formatC(mo, width = 2, flag = "0"), ".nc")) 
         if (file.exists(outfile_prec) & overwrite == FALSE) {
           next
         }
-        ncout_prec <- ncout 
+        ncout_prec <- ncdf4::nc_create(outfile_prec, vars = ncout, verbose = verbose)
         ## precipitation_flux
-        ncout_prec <- insert(ncout_prec, "PRECTmms", "mm/s", PRECTmms)
+        ncout_prec <- insert(ncout_prec, "PRECTmms", "mm/s", PRECTmms[tsel])
         ncdf4::nc_close(ncout_prec)
        
         # solar
         outfile_slr <- file.path(outfolder, paste0("Slr", formatC(year, width = 4, flag = "0"), "-",
-                                               formatC(mo, width = 2, flag = "0"), ".nc")) # 2. name beofre year? or CTSM_container_edit_forcing name with only year&month in user_datm_streams
+                                               formatC(mo, width = 2, flag = "0"), ".nc")) 
         if (file.exists(outfile_Slr) & overwrite == FALSE) {
           next
         }
-        ncout_slr <- ncout
+        ncout_slr <- ncdf4::nc_create(outfile_slr, vars = ncout, verbose = verbose)
         ## surface_downwelling_shortwave_flux_in_air
-        ncout_slr <- insert(ncout_slr, "FSDS", "W m-2", FSDS)
+        ncout_slr <- insert(ncout_slr, "FSDS", "W m-2", FSDS[tsel])
         ncdf4::nc_close(ncout_slr)
 
         # temper
         outfile_tem <- file.path(outfolder, paste0("Tem", formatC(year, width = 4, flag = "0"), "-",
-                                               formatC(mo, width = 2, flag = "0"), ".nc")) # 2. name beofre year? or CTSM_container_edit_forcing name with only year&month in user_datm_streams
+                                               formatC(mo, width = 2, flag = "0"), ".nc"))
         if (file.exists(outfile_Tem) & overwrite == FALSE) {
           next
         }
-        ncout_tem <- ncout
+        ncout_tem <- ncdf4::nc_create(outfile_tem, vars = ncout, verbose = verbose)
         ## surface_downwelling_longwave_flux_in_air
-        ncout_tem <- insert(ncout_tem, "FLDS", "W m-2", FLDS)
+        ncout_tem <- insert(ncout_tem, "FLDS", "W m-2", FLDS[tsel])
         ## air_pressure
-        ncout_tem <- insert(ncout_tem, "PSRF", "Pa", PSRF)
+        ncout_tem <- insert(ncout_tem, "PSRF", "Pa", PSRF[tsel])
         ## specific_humidity
-        ncout_tem <- insert(ncout_tem, "QBOT", "kg/kg", QBOT)
+        ncout_tem <- insert(ncout_tem, "QBOT", "kg/kg", QBOT[tsel])
         ## air_temperature
-        ncout_tem <- insert(ncout_tem, "TBOT", "K", TBOT)
+        ncout_tem <- insert(ncout_tem, "TBOT", "K", TBOT[tsel])
         ## eastward_wind & northward_wind
-        ncout_tem <- insert(ncout_tem, "WIND", "m/s", WIND)
+        ncout_tem <- insert(ncout_tem, "WIND", "m/s", WIND[tsel])
         ncdf4::nc_close(ncout_tem)
         }
         ncdf4::nc_close(nc)
