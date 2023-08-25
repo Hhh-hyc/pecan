@@ -81,8 +81,8 @@ met2model.FATES <- function(in.path, in.prefix, outfolder, start_date, end_date,
         time.dim <- ncdim_def(name = "time", units = "seconds", vals = 248,
                               create_dimvar = TRUE, unlim = TRUE)#left to CTSM automatically transfer
         scalar.dim <- ncdim_def(name='"scalar", units = "", vals = 1:1, creat_dimvar = FALSE)
-        dim      <- list(lat.dim, lon.dim, time.dim, scalar.dim)  ## Original question
-        ## http://www.cesm.ucar.edu/models/cesm1.2/clm/models/lnd/clm/doc/UsersGuide/x12979.html
+        dim      <- list(lat.dim, lon.dim, time.dim)  
+
         # basic .nc file 
         outfile <- file.path(outfolder, paste0(formatC(year, width = 4, flag = "0"), "-", 
                                                formatC(mo, width = 2, flag = "0"), ".nc"))
@@ -172,7 +172,8 @@ met2model.FATES <- function(in.path, in.prefix, outfolder, start_date, end_date,
         ncout_tem <- insert(ncout_tem, "WIND", "m/s", WIND[tsel])
         ncdf4::nc_close(ncout_tem)
         }
-        ncdf4::nc_close(nc)
+        ncdf4::nc_close(ncout) # close basic file
+        ncdf4::nc_close(nc) #PEcAn input file
     }  ## end input file exists
   }  ### end year loop over met files
   
