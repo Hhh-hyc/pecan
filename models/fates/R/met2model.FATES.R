@@ -78,9 +78,9 @@ met2model.FATES <- function(in.path, in.prefix, outfolder, start_date, end_date,
         #define dim
         lat.dim  <- ncdim_def(name = "lat", units = "", vals = 1:1, create_dimvar = FALSE)
         lon.dim  <- ncdim_def(name = "lon", units = "", vals = 1:1, create_dimvar = FALSE)
-        time.dim <- ncdim_def(name = "time", units = "seconds", vals = 248,
+        time.dim <- ncdim_def(name = "time", units = "seconds", vals = time,
                               create_dimvar = TRUE, unlim = TRUE)#left to CTSM automatically transfer
-        scalar.dim <- ncdim_def(name='"scalar", units = "", vals = 1:1, creat_dimvar = FALSE)
+        scalar.dim <- ncdim_def(name="scalar", units = "", vals = 1:1, creat_dimvar = FALSE)
         dim      <- list(lat.dim, lon.dim, time.dim)  
 
         # basic .nc file 
@@ -102,32 +102,37 @@ met2model.FATES <- function(in.path, in.prefix, outfolder, start_date, end_date,
         ncout <- ncdf4::ncvar_add(nc = ncout, v = var, verbose = verbose)
         ncvar_put(nc = ncout, varid = "LONGXY", vals = LONGXY)
         
-        #time
-        ncout <- insert(ncout, "time", "days", time[tsel])
-)
+        # time
+        var <- ncdf4::ncvar_def(name = "time", units = "days since 1700-01-01",
+                         dim = list(time.dim), missval = as.numeric(-9999))
+        ncout <- ncdf4::ncvar_add(nc = ncout, v = var, verbose = verbose)
+        ncvar_put(nc = ncout, varid = "LONGXY", vals = time[tsel])
+
         # EDGEE
         var <- ncdf4::ncvar_def(name = "EDGEE", units = "degrees_east",
                          dim = list(scalar.dim, lat.dim, lon.dim), missval = as.numeric(-9999))
         ncout <- ncdf4::ncvar_add(nc = ncout, v = var, verbose = verbose)
         ncvar_put(nc = ncout, varid = "EDGEE", vals = LONGXY+0.005)
-
-        # EDGES
-        var <- ncdf4::ncvar_def(name = "EDGES", units = "degrees_north",
-                         dim = list(scalar.dim, lat.dim, lon.dim), missval = as.numeric(-9999))
-        ncout <- ncdf4::ncvar_add(nc = ncout, v = var, verbose = verbose)
-        ncvar_put(nc = ncout, varid = "EDGES", vals = LONGXY-0.005)
-
-        # EDGEN
-        var <- ncdf4::ncvar_def(name = "EDGEN", units = "degrees_north",
-                         dim = list(scalar.dim, lat.dim, lon.dim), missval = as.numeric(-9999))
-        ncout <- ncdf4::ncvar_add(nc = ncout, v = var, verbose = verbose)
-        ncvar_put(nc = ncout, varid = "EDGEN", vals = LONGXY+0.005)
         
         # EDGEW # *4  edge for resolution , edge-central 0.005, # PEcAn provide range of grid?
         var <- ncdf4::ncvar_def(name = "EDGEW", units = "degrees_east",
                          dim = list(scalar.dim, lat.dim, lon.dim), missval = as.numeric(-9999))
         ncout <- ncdf4::ncvar_add(nc = ncout, v = var, verbose = verbose)
         ncvar_put(nc = ncout, varid = "EDGEW", vals = LONGXY-0.005)
+
+        # EDGES
+        var <- ncdf4::ncvar_def(name = "EDGES", units = "degrees_north",
+                         dim = list(scalar.dim, lat.dim, lon.dim), missval = as.numeric(-9999))
+        ncout <- ncdf4::ncvar_add(nc = ncout, v = var, verbose = verbose)
+        ncvar_put(nc = ncout, varid = "EDGES", vals = LATIXY-0.005)
+
+        # EDGEN
+        var <- ncdf4::ncvar_def(name = "EDGEN", units = "degrees_north",
+                         dim = list(scalar.dim, lat.dim, lon.dim), missval = as.numeric(-9999))
+        ncout <- ncdf4::ncvar_add(nc = ncout, v = var, verbose = verbose)
+        ncvar_put(nc = ncout, varid = "EDGEN", vals = LATIXY+0.005)
+        
+        
         
         ## saperately create files
 
