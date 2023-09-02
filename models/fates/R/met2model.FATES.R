@@ -86,54 +86,33 @@ met2model.FATES <- function(in.path, in.prefix, outfolder, start_date, end_date,
         # basic .nc file 
         outfile <- file.path(outfolder, paste0(formatC(year, width = 4, flag = "0"), "-", 
                                                formatC(mo, width = 2, flag = "0"), ".nc"))
+        print(outfile)
         if (file.exists(outfile) & overwrite == FALSE) {
           next
         }
-
-        # LATITUDE
-        var <- ncdf4::ncvar_def(name = "LATIXY", units = "degree_north",
-                         dim = list(lat.dim, lon.dim), missval = as.numeric(-9999))
-        ncout <- ncdf4::nc_create(outfile, vars = var, verbose = verbose)
-        ncvar_put(nc = ncout, varid = "LATIXY", vals = LATIXY) #same with FATES
-
-        # LONGITUDE
-        var <- ncdf4::ncvar_def(name = "LONGXY", units = "degree_east",
-                         dim = list(lat.dim, lon.dim), missval = as.numeric(-9999))
-        ncout <- ncdf4::ncvar_add(nc = ncout, v = var, verbose = verbose)
-        ncvar_put(nc = ncout, varid = "LONGXY", vals = LONGXY)
         
+        # LATITUDE
+        var_lat <- ncdf4::ncvar_def(name = "LATIXY", units = "degree_north", 
+                         dim = list(lat.dim, lon.dim), missval = as.numeric(-9999))
+        # LONGITUDE
+        var_long <- ncdf4::ncvar_def(name = "LONGXY", units = "degree_east",
+                         dim = list(lat.dim, lon.dim), missval = as.numeric(-9999))
         # time
-        var <- ncdf4::ncvar_def(name = "time", units = "days since 1700-01-01",
+        var_time <- ncdf4::ncvar_def(name = "time", units = "days since 1700-01-01",
                          dim = list(time.dim), missval = as.numeric(-9999))
-        ncout <- ncdf4::ncvar_add(nc = ncout, v = var, verbose = verbose)
-        ncvar_put(nc = ncout, varid = "LONGXY", vals = time[tsel])
-
         # EDGEE
-        var <- ncdf4::ncvar_def(name = "EDGEE", units = "degrees_east",
+        var_E <- ncdf4::ncvar_def(name = "EDGEE", units = "degrees_east",
                          dim = list(scalar.dim, lat.dim, lon.dim), missval = as.numeric(-9999))
-        ncout <- ncdf4::ncvar_add(nc = ncout, v = var, verbose = verbose)
-        ncvar_put(nc = ncout, varid = "EDGEE", vals = LONGXY+0.005)
         
         # EDGEW # *4  edge for resolution , edge-central 0.005, # PEcAn provide range of grid?
-        var <- ncdf4::ncvar_def(name = "EDGEW", units = "degrees_east",
+        var_W <- ncdf4::ncvar_def(name = "EDGEW", units = "degrees_east",
                          dim = list(scalar.dim, lat.dim, lon.dim), missval = as.numeric(-9999))
-        ncout <- ncdf4::ncvar_add(nc = ncout, v = var, verbose = verbose)
-        ncvar_put(nc = ncout, varid = "EDGEW", vals = LONGXY-0.005)
-
         # EDGES
-        var <- ncdf4::ncvar_def(name = "EDGES", units = "degrees_north",
+        var_S <- ncdf4::ncvar_def(name = "EDGES", units = "degrees_north",
                          dim = list(scalar.dim, lat.dim, lon.dim), missval = as.numeric(-9999))
-        ncout <- ncdf4::ncvar_add(nc = ncout, v = var, verbose = verbose)
-        ncvar_put(nc = ncout, varid = "EDGES", vals = LATIXY-0.005)
-
         # EDGEN
-        var <- ncdf4::ncvar_def(name = "EDGEN", units = "degrees_north",
+        var_N <- ncdf4::ncvar_def(name = "EDGEN", units = "degrees_north",
                          dim = list(scalar.dim, lat.dim, lon.dim), missval = as.numeric(-9999))
-        ncout <- ncdf4::ncvar_add(nc = ncout, v = var, verbose = verbose)
-        ncvar_put(nc = ncout, varid = "EDGEN", vals = LATIXY+0.005)
-        
-        
-        
         ## saperately create files
 
         # precipitation
@@ -142,7 +121,14 @@ met2model.FATES <- function(in.path, in.prefix, outfolder, start_date, end_date,
         if (file.exists(outfile_prec) & overwrite == FALSE) {
           next
         }
-        ncout_prec <- ncdf4::nc_create(outfile_prec, vars = ncout, verbose = verbose)
+        ncout_prec <- ncdf4::nc_create(outfile_prec, vars = list(var_lat,var_long,var_time,var_E,var_W,var_S,var_N), verbose = verbose)
+        ncvar_put(nc = ncout_prec, varid = "LATIXY", vals = LATIXY) #same with FATES
+        ncvar_put(nc = ncout_prec, varid = "LONGXY", vals = LONGXY)
+        ncvar_put(nc = ncout_prec, varid = "time", vals = time[tsel])
+        ncvar_put(nc = ncout_prec, varid = "EDGEE", vals = LONGXY+0.005)
+        ncvar_put(nc = ncout_prec, varid = "EDGEW", vals = LONGXY-0.005)
+        ncvar_put(nc = ncout_prec, varid = "EDGES", vals = LATIXY-0.005)
+        ncvar_put(nc = ncout_prec, varid = "EDGEN", vals = LATIXY+0.005)
         ## precipitation_flux
         ncout_prec <- insert(ncout_prec, "PRECTmms", "mm/s", PRECTmms[tsel])
         ncdf4::nc_close(ncout_prec)
@@ -153,7 +139,14 @@ met2model.FATES <- function(in.path, in.prefix, outfolder, start_date, end_date,
         if (file.exists(outfile_Slr) & overwrite == FALSE) {
           next
         }
-        ncout_slr <- ncdf4::nc_create(outfile_slr, vars = ncout, verbose = verbose)
+        ncout_slr <- ncdf4::nc_create(outfile_slr, vars = list(var_lat,var_long,var_time,var_E,var_W,var_S,var_N), verbose = verbose)
+        ncvar_put(nc = ncout_slr, varid = "LATIXY", vals = LATIXY) #same with FATES
+        ncvar_put(nc = ncout_slr, varid = "LONGXY", vals = LONGXY)
+        ncvar_put(nc = ncout_slr, varid = "time", vals = time[tsel])
+        ncvar_put(nc = ncout_slr, varid = "EDGEE", vals = LONGXY+0.005)
+        ncvar_put(nc = ncout_slr, varid = "EDGEW", vals = LONGXY-0.005)
+        ncvar_put(nc = ncout_slr, varid = "EDGES", vals = LATIXY-0.005)
+        ncvar_put(nc = ncout_slr, varid = "EDGEN", vals = LATIXY+0.005)
         ## surface_downwelling_shortwave_flux_in_air
         ncout_slr <- insert(ncout_slr, "FSDS", "W m-2", FSDS[tsel])
         ncdf4::nc_close(ncout_slr)
@@ -164,7 +157,14 @@ met2model.FATES <- function(in.path, in.prefix, outfolder, start_date, end_date,
         if (file.exists(outfile_Tem) & overwrite == FALSE) {
           next
         }
-        ncout_tem <- ncdf4::nc_create(outfile_tem, vars = ncout, verbose = verbose)
+        ncout_tem <- ncdf4::nc_create(outfile_tem, vars = list(var_lat,var_long,var_time,var_E,var_W,var_S,var_N), verbose = verbose)
+        ncvar_put(nc = ncout_tem, varid = "LATIXY", vals = LATIXY) #same with FATES
+        ncvar_put(nc = ncout_tem, varid = "LONGXY", vals = LONGXY)
+        ncvar_put(nc = ncout_tem, varid = "time", vals = time[tsel])
+        ncvar_put(nc = ncout_tem, varid = "EDGEE", vals = LONGXY+0.005)
+        ncvar_put(nc = ncout_tem, varid = "EDGEW", vals = LONGXY-0.005)
+        ncvar_put(nc = ncout_tem, varid = "EDGES", vals = LATIXY-0.005)
+        ncvar_put(nc = ncout_tem, varid = "EDGEN", vals = LATIXY+0.005)
         ## surface_downwelling_longwave_flux_in_air
         ncout_tem <- insert(ncout_tem, "FLDS", "W m-2", FLDS[tsel])
         ## air_pressure
@@ -177,7 +177,6 @@ met2model.FATES <- function(in.path, in.prefix, outfolder, start_date, end_date,
         ncout_tem <- insert(ncout_tem, "WIND", "m/s", WIND[tsel])
         ncdf4::nc_close(ncout_tem)
         }
-        ncdf4::nc_close(ncout) # close basic file
         ncdf4::nc_close(nc) #PEcAn input file
     }  ## end input file exists
   }  ### end year loop over met files
