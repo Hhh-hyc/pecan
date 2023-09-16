@@ -35,7 +35,7 @@ met2model.FATES <- function(in.path,in.prefix,outfolder,start_date,end_date,lst=
   
   
   insert <- function(ncout, name, unit, data, dim) {
-    var  <- ncdf4::ncvar_def(name = name, units = unit, dim = dim, missval = as.numeric(1.0e36), verbose = verbose)
+    var  <- ncdf4::ncvar_def(name, unit, dim = dim, missval = as.numeric(1.0e36), verbose = verbose)
     ncout <- ncdf4::ncvar_add(ncout, var)
     ncvar_put(nc = ncout, varid = name, vals = data)
     return(invisible(ncout))
@@ -84,17 +84,10 @@ met2model.FATES <- function(in.path,in.prefix,outfolder,start_date,end_date,lst=
         #define dim
         lat.dim  <- ncdim_def(name = "lat", units = "", vals = 1:1, create_dimvar = FALSE)
         lon.dim  <- ncdim_def(name = "lon", units = "", vals = 1:1, create_dimvar = FALSE)
-        time.dim <- ncdim_def(name = "time", units = "days from 1700-01-01", vals = time,
-                              create_dimvar = TRUE, unlim = TRUE) #start from each sm[mo]? left to CTSM automatically transfer
-        scalar.dim <- ncdim_def(name="scalar", units = "", vals = 1:1)# creat_dimvar = FALSE)
+        time.dim <- ncdim_def(name = "time", units = "days from 1700-01-01", vals = length(time),
+                              create_dimvar = TRUE, unlim = TRUE) #left to CTSM automatically transfer
+        scalar.dim <- ncdim_def(name="scalar", units = "", vals = 1:1)
         dim      <- list(time.dim, lat.dim, lon.dim)  
-
-        # basic .nc file 
-        outfile <- file.path(outfolder, paste0(formatC(year, width = 4, flag = "0"), "-", 
-                                               formatC(mo, width = 2, flag = "0"), ".nc"))
-        if (file.exists(outfile) & overwrite == FALSE) {
-          next
-        }
         
         # LATITUDE
         var_lat <- ncdf4::ncvar_def(name = "LATIXY", units = "degree_north", 
@@ -117,7 +110,8 @@ met2model.FATES <- function(in.path,in.prefix,outfolder,start_date,end_date,lst=
         # EDGEN
         var_N <- ncdf4::ncvar_def(name = "EDGEN", units = "degrees_north",
                          dim = list(scalar.dim, lat.dim, lon.dim), missval = as.numeric(-9999))
-        ## saperately create files
+        
+        ## SAPERATELY CREATE FILES
         put_var <- function(ncout){
           ncvar_put(nc = ncout, varid = "LATIXY", vals = LATIXY) #same with FATES
           ncvar_put(nc = ncout, varid = "LONGXY", vals = LONGXY)
@@ -125,52 +119,49 @@ met2model.FATES <- function(in.path,in.prefix,outfolder,start_date,end_date,lst=
           ncvar_put(nc = ncout, varid = "EDGEW", vals = LONGXY-0.005)
           ncvar_put(nc = ncout, varid = "EDGES", vals = LATIXY-0.005)
           ncvar_put(nc = ncout, varid = "EDGEN", vals = LATIXY+0.005)
+          #ncvar_put(nc = ncout, varid = "time", vals = time[tsel] )
         }
         # precipitation
         outfile_prec <- file.path(outfolder, paste0("Prec", formatC(year, width = 4, flag = "0"), "-",
                                                formatC(mo, width = 2, flag = "0"), ".nc")) 
-        if (file.exists(outfile_prec) & overwrite == FALSE) {
-          next
+        if (file.exists(outfile_prec) | overwrite == FALSE) {
+          var_prec   <- ncdf4::ncvar_def(name="PRECTmms", units="mm/s", dim = dim, missval = as.numeric(1.0e36), verbose = verbose)
+          ncout_prec <- ncdf4::nc_create(outfile_prec, vars = list(var_lat,var_long,var_E,var_W,var_S,var_N,var_prec), verbose = verbose)
+          put_var(ncout_prec)
+          ## precipitation_flux
+          ncvar_put(nc = ncout_prec, varid = "PRECTmms", vals =PRECTmms[tsel])
+          ncdf4::nc_close(ncout_prec)
         }
-        ncout_prec <- ncdf4::nc_create(outfile_prec, vars = list(var_lat,var_long,var_E,var_W,var_S,var_N), verbose = verbose)
-        put_var(ncout_prec)
-        ## precipitation_flux
-        ncout_prec <- insert(ncout_prec, "PRECTmms", "mm/s", PRECTmms[tsel], dim)
-        ncdf4::nc_close(ncout_prec)
-       
         # solar
         outfile_slr <- file.path(outfolder, paste0("Slr", formatC(year, width = 4, flag = "0"), "-",
                                                formatC(mo, width = 2, flag = "0"), ".nc")) 
-        if (file.exists(outfile_Slr) & overwrite == FALSE) {
-          next
+        if (file.exists(outfile_slr) | overwrite == FALSE) {
+          ncout_slr <- ncdf4::nc_create(outfile_slr, vars = list(var_lat,var_long,var_E,var_W,var_S,var_N,var_time), verbose = verbose)
+          put_var(ncout_slr)
+          ## surface_downwelling_shortwave_flux_in_air
+          ncout_slr <- insert(ncout_slr, "FSDS", "W m-2", FSDS[tsel], dim)
+          ncdf4::nc_close(ncout_slr)
         }
-        ncout_slr <- ncdf4::nc_create(outfile_slr, vars = list(var_lat,var_long,var_E,var_W,var_S,var_N), verbose = verbose)
-        put_var(ncout_slr)
-        ## surface_downwelling_shortwave_flux_in_air
-        ncout_slr <- insert(ncout_slr, "FSDS", "W m-2", FSDS[tsel], dim)
-        ncdf4::nc_close(ncout_slr)
-
         # temper
         outfile_tem <- file.path(outfolder, paste0("Tem", formatC(year, width = 4, flag = "0"), "-",
                                                formatC(mo, width = 2, flag = "0"), ".nc"))
-        if (file.exists(outfile_Tem) & overwrite == FALSE) {
-          next
+        if (file.exists(outfile_tem) | overwrite == FALSE) {
+          ncout_tem <- ncdf4::nc_create(outfile_tem, vars = list(var_lat,var_long,var_E,var_W,var_S,var_N,var_time), verbose = verbose)
+          put_var(ncout_tem)
+          ## surface_downwelling_longwave_flux_in_air
+          ncout_tem <- insert(ncout_tem, "FLDS", "W m-2", FLDS[tsel], dim)
+          ## air_pressure
+          ncout_tem <- insert(ncout_tem, "PSRF", "Pa", PSRF[tsel], dim)
+          ## specific_humidity
+          ncout_tem <- insert(ncout_tem, "QBOT", "kg/kg", QBOT[tsel], dim)
+          ## air_temperature
+          ncout_tem <- insert(ncout_tem, "TBOT", "K", TBOT[tsel], dim)
+          ## eastward_wind & northward_wind
+          ncout_tem <- insert(ncout_tem, "WIND", "m/s", WIND[tsel], dim)
+          ncdf4::nc_close(ncout_tem)
         }
-        ncout_tem <- ncdf4::nc_create(outfile_tem, vars = list(var_lat,var_long,var_E,var_W,var_S,var_N), verbose = verbose)
-        put_var(ncout_tem)
-        ## surface_downwelling_longwave_flux_in_air
-        ncout_tem <- insert(ncout_tem, "FLDS", "W m-2", FLDS[tsel], dim)
-        ## air_pressure
-        ncout_tem <- insert(ncout_tem, "PSRF", "Pa", PSRF[tsel], dim)
-        ## specific_humidity
-        ncout_tem <- insert(ncout_tem, "QBOT", "kg/kg", QBOT[tsel], dim)
-        ## air_temperature
-        ncout_tem <- insert(ncout_tem, "TBOT", "K", TBOT[tsel], dim)
-        ## eastward_wind & northward_wind
-        ncout_tem <- insert(ncout_tem, "WIND", "m/s", WIND[tsel], dim)
-        ncdf4::nc_close(ncout_tem)
-        }
-        ncdf4::nc_close(nc) #PEcAn input file
+      }
+      ncdf4::nc_close(nc) #PEcAn input file
     }  ## end input file exists
   }  ### end year loop over met files
   
@@ -187,5 +178,5 @@ met2model.FATES <- function(in.path,in.prefix,outfolder,start_date,end_date,lst=
  #                   stringsAsFactors = FALSE))
 } # met2model.FATES
 
-out_l1 <- met2model.FATES(in.path='/Users/mac/Documents/pecan/models/fates/R/FI-Hyy',in.prefix='/FLX_FI-Hyy_FLUXNET2015_FULLSET_HH_1996-2018_beta-3',
+met2model.FATES(in.path='/Users/mac/Documents/pecan/models/fates/R/FI-Hyy',in.prefix='/FLX_FI-Hyy_FLUXNET2015_FULLSET_HH_1996-2018_beta-3',
                             outfolder='/Users/mac/Documents/pecan/models/fates/R/out',start_date=2016/1/1,end_date=2018/12/31,lst=0,lat=61.8474,lon=24.2948,overwrite = FALSE, verbose = FALSE)
