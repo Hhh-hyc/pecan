@@ -38,46 +38,52 @@
 library(ncdf4.helpers) # dims names
 model2netcdf.FATES <- function(outdir, sitelat, sitelon, pfts) {
   ## matched_var could be updated further to take in only oldnames users need.
-  matched_var <- list(c("FATES_GPP_PF","GPP","kgC m-2 s-1","Gross Primary Productivity"))#,
-                      #c("ER","TotalResp","kgC m-2 s-1","Total Respiration"),
-                      #c("NEE","NEE","kgC m-2 s-1", "Net Ecosystem Exchange of carbon, includes fire and hrv_xsmrpool"),
-                      #c("AR","AutoResp","kgC m-2 s-1","Autotrophic respiration (MR + GR)"),
-                      #c("HR","HeteroResp","kgC m-2 s-1","Total heterotrophic respiration"),
-                      #c("SR","SoilResp","kgC m-2 s-1","Total soil respiration (HR + root resp)"),
-                      #c("TLAI","LAI","m2 m-2","Total projected leaf area index"),
-                      #c("Qle","Evap","Evap","kgC m-2 s-1","Total evaporation"),
-                      #c("QVEGT","Transp","kg m-2 s-1","Canopy transpiration")) 
+  matched_var <- list(c("FATES_GPP_PF","GPP","kgC m-2 s-1","Gross Primary Productivity"), 
+                      c("ER","TotalResp","kgC m-2 s-1","Total Respiration"),
+                      c("NEE","NEE","kgC m-2 s-1", "Net Ecosystem Exchange of carbon, includes fire and hrv_xsmrpool"),
+                      c("AR","AutoResp","kgC m-2 s-1","Autotrophic respiration (MR + GR)"),
+                      c("HR","HeteroResp","kgC m-2 s-1","Total heterotrophic respiration"),
+                      c("SR","SoilResp","kgC m-2 s-1","Total soil respiration (HR + root resp)"),
+                      c("TLAI","LAI","m2 m-2","Total projected leaf area index"),
+                      c("Qle","Evap","Evap","kgC m-2 s-1","Total evaporation"),
+                      c("QVEGT","Transp","kg m-2 s-1","Canopy transpiration")) 
 
   var_update <- function(out,oldname,newname,newunits=NULL,long_name=NULL){
     if (oldname %in% nc_month_names) {
-      ## define variable
+      ## define units of variables
       oldunits <- ncdf4::ncatt_get(nc_month,oldname,"units")$value
       if (oldunits=="gC/m^2/s") oldunits <- "gC m-2 s-1"
       if (oldname=="TLAI") oldunits <- "m2 m-2" # delete old unit ='none'
       if (is.null(newunits)) newunits = oldunits
-      ## check pft dimension
-      if (any(grepl('pft',nc.get.dim.names(nc_month, oldname)))){dimension <- xypt # include fates_levpft
-      }else{ dimension <- xyt } # only xyt
+      ## check pft dimensions
+      if (any(grepl('pft',nc.get.dim.names(nc_month, oldname)))){
+        dimension <- xypt # include fates_levpft
+      }else{ 
+        dimension <- xyt 
+      } # only xyt
+
       ## transpose dimensions into (,t)
       if (nc.get.dim.names(nc_month,oldname)[length(nc.get.dim.names(nc_month,oldname))]=='time'){
-            dat <- ncdf4::ncvar_get(nc_month,oldname, start=c(1,1,1)) # time at the tail of dims
+            dat_0 <- ncdf4::ncvar_get(nc_month,oldname) # time at the tail of dims
             # dat.new <- PEcAn.utils::misc.convert(dat,oldunits,newunits) # convert data units
           }
       newvar <- ncdf4::ncvar_def(name = newname, units = newunits, longname=long_name, dim = dimension)
       ## Adding target variables into out 
       if(is.null(out)) {
-        out <- list(var <- list(),dat <- list())
+        out <- list(var <- list(),dat <- list(), dimm<-list())
         out$var[[1]] <- newvar
-        out$dat[[1]] <- dat # dat.new
+        out$dat[[1]] <- dat_0 # dat.new
+        out$dimm[[1]]<- length(dimension)
+        # show(out$dat)
       } else {
         i <- length(out$var) + 1
         out$var[[i]] <- newvar
-        out$dat[[i]] <- dat # dat.new
+        out$dat[[i]] <- dat_0 # dat.new
+        out$dimm[[i]]<- length(dimension)
+        show(out$dat[[i]])
       }
-    } else {
-      ## correct way to "skip" and output variables that may be missing in the HLM-FATES output?
+    } 
      # PEcAn.logger::logger.info(paste0("HLM-FATES variable: ", oldname," not present. Skipping conversion"))
-    }
     return(out)
   }
     
@@ -101,30 +107,47 @@ model2netcdf.FATES <- function(outdir, sitelat, sitelon, pfts) {
         nc_month_names <- names(nc_month$var)
         ## Create time bounds to populate time_bounds variable iteratively
         var_bound <- ncdf4::ncvar_get(nc_month, "time_bounds") # start,end day of month
-        time_for_this_month <- file.dates[ysel]+round(mean(var_bound))*60*60*24 # creat middle point in each interval for the whole year
-        time_points_year <- append(time_points_year, time_for_this_month) #create yearly points
-        
         ## define dimensions 
         t <- ncdf4::ncdim_def(name = "time", units = paste0("days since ", init_year, "-01-01 00:00:00"),
-                      vals = as.vector(time_for_this_month), calendar = "noleap", unlim = TRUE)
-        time_interval <- ncdf4::ncdim_def(name = "hist_interval", longname = "history time interval endpoint dimensions",vals = 1:2, units = "")
-        lat  <- ncdf4::ncdim_def("lat", "degrees_north", vals = as.numeric(sitelat), longname = "coordinate_latitude")
-        lon  <- ncdf4::ncdim_def("lon", "degrees_east", vals = as.numeric(sitelon), longname = "coordinate_longitude")
-        pft  <- ncdf4::ncdim_def('pft', '', vals=pfts, longname = "FATES pft number")
+                    vals = as.double(1.0:1.0), calendar = "noleap", unlim = TRUE)
+        time_interval <- ncdf4::ncdim_def(name = "hist_interval", 
+                    longname = "history time interval endpoint dimensions",vals = 1:2, units = "")
+        lat  <- ncdf4::ncdim_def("lat", "degrees_north", vals = as.double(1.0:1.0), longname = "coordinate_latitude")
+        lon  <- ncdf4::ncdim_def("lon", "degrees_east", vals = as.double(1.0:1.0), longname = "coordinate_longitude")
+        pft  <- ncdf4::ncdim_def('pft', '', vals=1:12, longname = "FATES pft number")
         xyt  <- list(lon, lat, t)
         xypt <- list(lon, lat, pft, t)
-        
         ## write monthly files with start(1,1,i)
         for (name_param in matched_var){
-          out <- var_update(out,name_param[1],name_param[2],name_param[3],name_param[4]) # convert monthly fates output into one variable
+          out  <- var_update(out,name_param[1],name_param[2],name_param[3],name_param[4]) # convert monthly fates output into one variable
         }
-        out$var[[length(out$var) + 1]] <- ncdf4::ncvar_def(name="time_bounds", units='', longname = "history time interval endpoints", dim=list(time_interval,time = t), prec = "double")
+        out$var[[length(out$var) + 1]] <- ncdf4::ncvar_def(name="time_bounds", units='', 
+                                          longname = "history time interval endpoints", dim=list(time_interval,t), prec = "double")
         out$dat[[length(out$dat) + 1]] <- c(rbind(var_bound[1], var_bound[2])) #start, end days of the year
+        out$dimm[[length(out$dimm) + 1]] <- 2
         if(month==ysel[1]){
           ncout <- ncdf4::nc_create(oname,out$var) # create yearly nc file
+          # HYC: define var time, lon, lat, and put var lon, lat
+          time_var <- ncdf4::ncvar_def(name = "time", units = paste0("days since ", init_year, "-01-01 00:00:00"),longname = "time", dim = list(t), prec = "double")
+          lat_var  <- ncdf4::ncvar_def(name = "lat", units = "degrees_north", longname = "coordinate_latitude", dim=list(lat), prec = "double")
+          lon_var  <- ncdf4::ncvar_def(name = "lon", units = "degrees_east", longname = "coordinate_longitude", dim=list(lon), prec = "double")
+          ncdf4::ncvar_put(ncout, lat_var, sitelat, start=c(1))
+          ncdf4::ncvar_put(ncout, lon_var, sitelon, start=c(1))
         }
-        print(out)
-        # for (i in seq_along(out$var)) {ncdf4::ncvar_put(ncout, out$var[[i]], out$dat[[i]], start=c(1,1,1,month))} # write monthly converted variable into PEcAn output
+        # put time
+        ncdf4::ncvar_put(ncout, time_var, mean(var_bound), start=c(month), count=c(1))
+
+        for (i in seq_along(out$var)) {
+          if(out$dimm[[i]]==4){ # xypt
+            ncdf4::ncvar_put(ncout, out$var[[i]], out$dat[[i]], start=c(1,1,1,month), count=c(1,1,12,1))
+          }else if (out$dimm[[i]]==3) { # xyt
+            ncdf4::ncvar_put(ncout, out$var[[i]], out$dat[[i]], start=c(1,1,month))
+          }else{ # time_bounds
+            ncdf4::ncvar_put(ncout, out$var[[i]], out$dat[[i]], start=c(1,month))
+          }
+          
+        } # write monthly converted variable into PEcAn output
+        
       }
     ## extract variable and long names of the yearly file to VAR file for PEcAn vis
   #  utils::write.table(sapply(ncout$var, function(x) { x$longname }), 
